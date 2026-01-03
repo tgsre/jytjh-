@@ -1,0 +1,829 @@
+-- LocalScript - VACIDS PREMIUM INSTANT STEAL (Unified: GUI moderna + Sistema proximity avanzato)
+local Players = game:GetService("Players")
+local ProximityPromptService = game:GetService("ProximityPromptService")
+local TweenService = game:GetService("TweenService")
+local CoreGui = game:GetService("CoreGui")
+
+local player = Players.LocalPlayer
+repeat task.wait() until player.Character
+local character = player.Character
+local humanoid = character:WaitForChild("Humanoid")
+local hrp = character:WaitForChild("HumanoidRootPart")
+
+-- CONFIGURATION
+local CARPET_NAME = "flying carpet"
+local teleportPositions = {
+    Vector3.new(-362.43, -7, 7.43),
+    Vector3.new(-364, -8, 118),
+    Vector3.new(-461, -8, 112)
+}
+local brainrotPositions = {
+    Vector3.new(-336, -6, 129),
+    Vector3.new(-336, -5, -16),
+    nil
+}
+
+local selectedSlot = 1
+local isProcessing = false
+local activePrompt = nil
+local teleportScheduled = false
+local isFrozen = false
+local espTpMarker = nil
+local espTpGui = nil
+local espBrainrotMarker = nil
+local espBrainrotGui = nil
+local isEspEnabled = true
+local isAutoStealEnabled = false
+local selectedPlayerId = nil
+local playerListFrame = nil
+local antiScamEnabled = false
+local antiScamConnection = nil
+
+print("VACIDS PREMIUM INSTANT STEAL STARTED!")
+
+-- AUTO-SELECT CLOSEST SLOT
+local function getClosestSlot()
+    local currentPos = hrp.Position
+    local minDist = math.huge
+    local closest = 1
+    for i, pos in ipairs(teleportPositions) do
+        local dist = (pos - currentPos).Magnitude
+        if dist < minDist then
+            minDist = dist
+            closest = i
+        end
+    end
+    return closest
+end
+selectedSlot = getClosestSlot()
+
+-- ESP FUNCTIONS
+local function createTPMarker(position, slotNumber)
+    if espTpMarker then espTpMarker:Destroy() end
+    if espTpGui then espTpGui:Destroy() end
+    if not isEspEnabled then return end
+    
+    espTpMarker = Instance.new("Part")
+    espTpMarker.Size = Vector3.new(3, 6, 3)
+    espTpMarker.Position = position
+    espTpMarker.Anchored = true
+    espTpMarker.CanCollide = false
+    espTpMarker.Transparency = 0.8
+    espTpMarker.Color = Color3.fromRGB(100, 100, 255)
+    espTpMarker.Material = Enum.Material.Neon
+    espTpMarker.Parent = workspace
+    
+    local light = Instance.new("PointLight")
+    light.Color = Color3.fromRGB(150, 150, 255)
+    light.Brightness = 3
+    light.Range = 15
+    light.Parent = espTpMarker
+    
+    espTpGui = Instance.new("BillboardGui")
+    espTpGui.Adornee = espTpMarker
+    espTpGui.Size = UDim2.new(0, 160, 0, 60)
+    espTpGui.StudsOffset = Vector3.new(0, 4, 0)
+    espTpGui.AlwaysOnTop = true
+    espTpGui.Parent = espTpMarker
+    
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(1, 0, 1, 0)
+    frame.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
+    frame.BackgroundTransparency = 0.4
+    frame.Parent = espTpGui
+    
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 10)
+    corner.Parent = frame
+    
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(1, 0, 1, 0)
+    label.BackgroundTransparency = 1
+    label.Text = "TP Slot " .. slotNumber .. "\n(" .. math.floor(position.X) .. ", " .. math.floor(position.Y) .. ", " .. math.floor(position.Z) .. ")"
+    label.TextColor3 = Color3.fromRGB(220, 220, 255)
+    label.TextSize = 16
+    label.Font = Enum.Font.GothamBold
+    label.Parent = frame
+    
+    spawn(function()
+        while espTpMarker and espTpMarker.Parent do
+            TweenService:Create(espTpMarker, TweenInfo.new(1.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), {Transparency = 0.7}):Play()
+            task.wait()
+        end
+    end)
+end
+
+local function createBrainrotMarker(position)
+    if espBrainrotMarker then espBrainrotMarker:Destroy() end
+    if espBrainrotGui then espBrainrotGui:Destroy() end
+    if not isEspEnabled then return end
+    
+    espBrainrotMarker = Instance.new("Part")
+    espBrainrotMarker.Size = Vector3.new(3, 6, 3)
+    espBrainrotMarker.Position = position
+    espBrainrotMarker.Anchored = true
+    espBrainrotMarker.CanCollide = false
+    espBrainrotMarker.Transparency = 0.8
+    espBrainrotMarker.Color = Color3.fromRGB(255, 80, 80)
+    espBrainrotMarker.Material = Enum.Material.Neon
+    espBrainrotMarker.Parent = workspace
+    
+    local light = Instance.new("PointLight")
+    light.Color = Color3.fromRGB(255, 120, 120)
+    light.Brightness = 3
+    light.Range = 15
+    light.Parent = espBrainrotMarker
+    
+    espBrainrotGui = Instance.new("BillboardGui")
+    espBrainrotGui.Adornee = espBrainrotMarker
+    espBrainrotGui.Size = UDim2.new(0, 200, 0, 60)
+    espBrainrotGui.StudsOffset = Vector3.new(0, 4, 0)
+    espBrainrotGui.AlwaysOnTop = true
+    espBrainrotGui.Parent = espBrainrotMarker
+    
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(1, 0, 1, 0)
+    frame.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
+    frame.BackgroundTransparency = 0.4
+    frame.Parent = espBrainrotGui
+    
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 10)
+    corner.Parent = frame
+    
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(1, 0, 1, 0)
+    label.BackgroundTransparency = 1
+    label.Text = "Brainrot Position\n(" .. math.floor(position.X) .. ", " .. math.floor(position.Y) .. ", " .. math.floor(position.Z) .. ")"
+    label.TextColor3 = Color3.fromRGB(255, 150, 150)
+    label.TextSize = 16
+    label.Font = Enum.Font.GothamBold
+    label.Parent = frame
+end
+
+local function updateSelectedSlot(slot)
+    selectedSlot = slot
+    createTPMarker(teleportPositions[slot], slot)
+    if slot <= 2 and brainrotPositions[slot] then
+        createBrainrotMarker(brainrotPositions[slot])
+    else
+        if espBrainrotMarker then espBrainrotMarker:Destroy() end
+        if espBrainrotGui then espBrainrotGui:Destroy() end
+    end
+end
+
+local function updateEspVisibility()
+    if not isEspEnabled then
+        if espTpMarker then espTpMarker:Destroy() end
+        if espBrainrotMarker then espBrainrotMarker:Destroy() end
+    else
+        updateSelectedSlot(selectedSlot)
+    end
+end
+
+local function equipCarpet()
+    local backpack = player:FindFirstChild("Backpack")
+    if not backpack then return false end
+    for _, tool in ipairs(backpack:GetChildren()) do
+        if tool:IsA("Tool") and string.find(string.lower(tool.Name), string.lower(CARPET_NAME)) then
+            humanoid:EquipTool(tool)
+            task.wait(0.2)
+            return true
+        end
+    end
+    local currentTool = character:FindFirstChildWhichIsA("Tool")
+    if currentTool and string.find(string.lower(currentTool.Name), string.lower(CARPET_NAME)) then
+        return true
+    end
+    return false
+end
+
+local function freezePlayer()
+    if isFrozen then return end
+    isFrozen = true
+    local orig = hrp.CFrame
+    hrp.Anchored = true
+    task.wait(1)
+    hrp.Anchored = false
+    hrp.CFrame = orig
+    isFrozen = false
+end
+
+-- GUI
+if CoreGui:FindFirstChild("VacidsPremiumGUI") then CoreGui["VacidsPremiumGUI"]:Destroy() end
+local MainGui = Instance.new("ScreenGui")
+MainGui.Name = "VacidsPremiumGUI"
+MainGui.Parent = CoreGui
+MainGui.ResetOnSpawn = false
+
+local MainFrame = Instance.new("Frame")
+MainFrame.Size = UDim2.new(0, 280, 0, 110) -- Ridotto per mobile
+MainFrame.Position = UDim2.new(0.5, -140, 0.5, -90)
+MainFrame.BackgroundColor3 = Color3.fromRGB(18, 18, 22)
+MainFrame.BackgroundTransparency = 1
+MainFrame.ClipsDescendants = true
+MainFrame.Active = true
+MainFrame.Draggable = true
+MainFrame.Parent = MainGui
+
+local MainCorner = Instance.new("UICorner")
+MainCorner.CornerRadius = UDim.new(0, 14)
+MainCorner.Parent = MainFrame
+
+local MainGradient = Instance.new("UIGradient")
+MainGradient.Color = ColorSequence.new{
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(28, 28, 35)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(12, 12, 18))
+}
+MainGradient.Parent = MainFrame
+
+local MainStroke = Instance.new("UIStroke")
+MainStroke.Thickness = 1.5
+MainStroke.Color = Color3.fromRGB(80, 80, 200)
+MainStroke.Transparency = 0.7
+MainStroke.Parent = MainFrame
+
+TweenService:Create(MainFrame, TweenInfo.new(0.6, Enum.EasingStyle.Quint), {BackgroundTransparency = 0}):Play()
+
+-- Title
+local Title = Instance.new("TextLabel")
+Title.Size = UDim2.new(1, -70, 0, 35) -- Ridotto
+Title.Position = UDim2.new(0, 15, 0, 8)
+Title.BackgroundTransparency = 1
+Title.Text = "VACIDS PREMIUM"
+Title.TextColor3 = Color3.fromRGB(170, 240, 220)
+Title.Font = Enum.Font.GothamBlack
+Title.TextSize = 22 -- Ridotto
+Title.TextXAlignment = Enum.TextXAlignment.Left
+Title.Parent = MainFrame
+
+-- Enable Button
+local EnableBtn = Instance.new("TextButton")
+EnableBtn.Size = UDim2.new(0, 245, 0, 38) -- Ridotto
+EnableBtn.Position = UDim2.new(0.5, -122.5, 0, 50)
+EnableBtn.BackgroundColor3 = Color3.fromRGB(45, 45, 60)
+EnableBtn.Text = "Enable Instant Steal"
+EnableBtn.TextColor3 = Color3.fromRGB(220, 220, 255)
+EnableBtn.Font = Enum.Font.GothamBold
+EnableBtn.TextSize = 15
+EnableBtn.ZIndex = 10
+EnableBtn.Parent = MainFrame
+
+local ECorner = Instance.new("UICorner")
+ECorner.CornerRadius = UDim.new(0, 10)
+ECorner.Parent = EnableBtn
+
+local EStroke = Instance.new("UIStroke")
+EStroke.Color = Color3.fromRGB(100, 100, 255)
+EStroke.Transparency = 0.5
+EStroke.Parent = EnableBtn
+
+EnableBtn.MouseEnter:Connect(function()
+    TweenService:Create(EnableBtn, TweenInfo.new(0.4, Enum.EasingStyle.Quint), {BackgroundColor3 = Color3.fromRGB(65, 65, 85)}):Play()
+end)
+
+EnableBtn.MouseLeave:Connect(function()
+    TweenService:Create(EnableBtn, TweenInfo.new(0.4, Enum.EasingStyle.Quint), {BackgroundColor3 = isAutoStealEnabled and Color3.fromRGB(40, 100, 60) or Color3.fromRGB(45, 45, 60)}):Play()
+end)
+
+EnableBtn.MouseButton1Click:Connect(function()
+    isAutoStealEnabled = not isAutoStealEnabled
+    EnableBtn.Text = isAutoStealEnabled and "Disable Instant Steal" or "Enable Instant Steal"
+    EnableBtn.BackgroundColor3 = isAutoStealEnabled and Color3.fromRGB(40, 100, 60) or Color3.fromRGB(45, 45, 60)
+end)
+
+-- Gear
+local Gear = Instance.new("TextButton")
+Gear.Size = UDim2.new(0, 32, 0, 32) -- Ridotto
+Gear.Position = UDim2.new(1, -42, 0, 10)
+Gear.BackgroundTransparency = 1
+Gear.Text = "⚙"
+Gear.TextColor3 = Color3.fromRGB(160, 160, 220)
+Gear.Font = Enum.Font.GothamBold
+Gear.TextSize = 24 -- Ridotto
+Gear.ZIndex = 10
+Gear.Parent = MainFrame
+
+Gear.MouseEnter:Connect(function() 
+    TweenService:Create(Gear, TweenInfo.new(0.3), {Rotation = 30, TextColor3 = Color3.fromRGB(220, 220, 255)}):Play() 
+end)
+
+Gear.MouseLeave:Connect(function() 
+    TweenService:Create(Gear, TweenInfo.new(0.3), {Rotation = 0, TextColor3 = Color3.fromRGB(160, 160, 220)}):Play() 
+end)
+
+-- Settings Frame
+local SettingsFrame = Instance.new("Frame")
+SettingsFrame.Size = UDim2.new(1, 0, 0, 0)
+SettingsFrame.Position = UDim2.new(0, 0, 0, 110) -- Aggiornato
+SettingsFrame.BackgroundColor3 = Color3.fromRGB(22, 22, 28)
+SettingsFrame.ClipsDescendants = true
+SettingsFrame.Parent = MainFrame
+
+local SCorner = Instance.new("UICorner")
+SCorner.CornerRadius = UDim.new(0, 14)
+SCorner.Parent = SettingsFrame
+
+-- Slot Buttons (più piccoli)
+local SlotBtns = {}
+for i = 1, 3 do
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(0, 70, 0, 32) -- Ridotto
+    btn.Position = UDim2.new(0.5, -105 + (i-1)*75, 0, 25) -- Adattato
+    btn.BackgroundColor3 = Color3.fromRGB(40, 40, 55)
+    btn.Text = "Slot " .. i
+    btn.TextColor3 = Color3.fromRGB(180, 180, 240)
+    btn.Font = Enum.Font.GothamBold
+    btn.TextSize = 13 -- Ridotto
+    btn.ZIndex = 6
+    btn.Parent = SettingsFrame
+    
+    local c = Instance.new("UICorner")
+    c.CornerRadius = UDim.new(0, 8)
+    c.Parent = btn
+    
+    btn.MouseButton1Click:Connect(function()
+        selectedSlot = i
+        updateSelectedSlot(i)
+        for _, b in ipairs(SlotBtns) do
+            b.BackgroundColor3 = Color3.fromRGB(40, 40, 55)
+        end
+        btn.BackgroundColor3 = Color3.fromRGB(70, 70, 120)
+    end)
+    
+    table.insert(SlotBtns, btn)
+end
+SlotBtns[selectedSlot].BackgroundColor3 = Color3.fromRGB(70, 70, 120)
+
+-- Desync Button
+local DesyncBtn = Instance.new("TextButton")
+DesyncBtn.Size = UDim2.new(0, 245, 0, 34) -- Ridotto
+DesyncBtn.Position = UDim2.new(0.5, -122.5, 0, 70)
+DesyncBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 65)
+DesyncBtn.Text = "Activate Desync"
+DesyncBtn.TextColor3 = Color3.fromRGB(220, 220, 255)
+DesyncBtn.Font = Enum.Font.GothamBold
+DesyncBtn.TextSize = 13 -- Ridotto
+DesyncBtn.ZIndex = 6
+DesyncBtn.Parent = SettingsFrame
+
+local dc = Instance.new("UICorner")
+dc.CornerRadius = UDim.new(0, 8)
+dc.Parent = DesyncBtn
+
+-- ESP Button
+local EspBtn = Instance.new("TextButton")
+EspBtn.Size = UDim2.new(0, 245, 0, 34) -- Ridotto
+EspBtn.Position = UDim2.new(0.5, -122.5, 0, 115)
+EspBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 65)
+EspBtn.Text = "ESP: Enabled"
+EspBtn.TextColor3 = Color3.fromRGB(220, 220, 255)
+EspBtn.Font = Enum.Font.GothamBold
+EspBtn.TextSize = 13 -- Ridotto
+EspBtn.ZIndex = 6
+EspBtn.Parent = SettingsFrame
+
+local ec = Instance.new("UICorner")
+ec.CornerRadius = UDim.new(0, 8)
+ec.Parent = EspBtn
+
+EspBtn.MouseButton1Click:Connect(function()
+    isEspEnabled = not isEspEnabled
+    EspBtn.Text = "ESP: " .. (isEspEnabled and "Enabled" or "Disabled")
+    updateEspVisibility()
+end)
+
+-- Auto TP Brainrot Button
+local AutoBrainrotBtn = Instance.new("TextButton")
+AutoBrainrotBtn.Size = UDim2.new(0, 245, 0, 34) -- Ridotto
+AutoBrainrotBtn.Position = UDim2.new(0.5, -122.5, 0, 160)
+AutoBrainrotBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 65)
+AutoBrainrotBtn.Text = "Auto TP to Brainrot"
+AutoBrainrotBtn.TextColor3 = Color3.fromRGB(220, 220, 255)
+AutoBrainrotBtn.Font = Enum.Font.GothamBold
+AutoBrainrotBtn.TextSize = 13 -- Ridotto
+AutoBrainrotBtn.ZIndex = 6
+AutoBrainrotBtn.Parent = SettingsFrame
+
+local abc = Instance.new("UICorner")
+abc.CornerRadius = UDim.new(0, 8)
+abc.Parent = AutoBrainrotBtn
+
+AutoBrainrotBtn.MouseButton1Click:Connect(function()
+    -- Equipaggia il carpet prima del TP
+    if not equipCarpet() then
+        print("⚠️ Carpet not equipped for brainrot TP")
+        return
+    end
+    
+    task.wait(0.13)
+    
+    -- Slot 1: TP alle coordinate (-358.91, -7.00, 133.52) poi a brainrot 1
+    if selectedSlot == 1 then
+        local pos1 = Vector3.new(-358.91, -7.00, 133.52)
+        hrp.CFrame = CFrame.new(pos1)
+        print("🧠 Auto TP: Slot 1 → (-358.91, -7.00, 133.52)")
+        task.wait(0.13)
+        
+        local brainrot1 = brainrotPositions[1]
+        hrp.CFrame = CFrame.new(brainrot1)
+        print("🧠 Auto TP: → Brainrot 1 (-336, -6, 129)")
+    
+    -- Slot 2: TP alle coordinate (-346.73, -7.00, -11.29) poi a brainrot 2
+    elseif selectedSlot == 2 then
+        local pos3 = Vector3.new(-346.73, -7.00, -11.29)
+        hrp.CFrame = CFrame.new(pos3)
+        print("🧠 Auto TP: Slot 2 → (-346.73, -7.00, -11.29)")
+        task.wait(0.13)
+        
+        local brainrot2 = brainrotPositions[2]
+        hrp.CFrame = CFrame.new(brainrot2)
+        print("🧠 Auto TP: → Brainrot 2 (-336, -5, -16)")
+    
+    -- Slot 3: TP solo alle coordinate (-325.42, -5.10, 114.03)
+    elseif selectedSlot == 3 then
+        local pos2 = Vector3.new(-325.42, -5.10, 114.03)
+        hrp.CFrame = CFrame.new(pos2)
+        print("🧠 Auto TP: Slot 3 → (-325.42, -5.10, 114.03)")
+    end
+end)
+
+-- Unlock Base Button
+local UnlockBaseBtn = Instance.new("TextButton")
+UnlockBaseBtn.Size = UDim2.new(0, 245, 0, 34) -- Ridotto
+UnlockBaseBtn.Position = UDim2.new(0.5, -122.5, 0, 205)
+UnlockBaseBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 65)
+UnlockBaseBtn.Text = "Unlock Base"
+UnlockBaseBtn.TextColor3 = Color3.fromRGB(220, 220, 255)
+UnlockBaseBtn.Font = Enum.Font.GothamBold
+UnlockBaseBtn.TextSize = 13 -- Ridotto
+UnlockBaseBtn.ZIndex = 6
+UnlockBaseBtn.Parent = SettingsFrame
+
+local ubc = Instance.new("UICorner")
+ubc.CornerRadius = UDim.new(0, 8)
+ubc.Parent = UnlockBaseBtn
+
+-- Anti Scam Button
+local AntiScamBtn = Instance.new("TextButton")
+AntiScamBtn.Size = UDim2.new(0, 245, 0, 34) -- Ridotto
+AntiScamBtn.Position = UDim2.new(0.5, -122.5, 0, 250)
+AntiScamBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 65)
+AntiScamBtn.Text = "Anti Scam: OFF"
+AntiScamBtn.TextColor3 = Color3.fromRGB(220, 220, 255)
+AntiScamBtn.Font = Enum.Font.GothamBold
+AntiScamBtn.TextSize = 13 -- Ridotto
+AntiScamBtn.ZIndex = 6
+AntiScamBtn.Parent = SettingsFrame
+
+local asc = Instance.new("UICorner")
+asc.CornerRadius = UDim.new(0, 8)
+asc.Parent = AntiScamBtn
+
+-- Player List Frame
+playerListFrame = Instance.new("Frame")
+playerListFrame.Size = UDim2.new(0, 300, 0, 400)
+playerListFrame.Position = UDim2.new(0.5, -150, 0.5, -200)
+playerListFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
+playerListFrame.Visible = false
+playerListFrame.ZIndex = 100
+playerListFrame.Parent = MainGui
+
+local plCorner = Instance.new("UICorner")
+plCorner.CornerRadius = UDim.new(0, 15)
+plCorner.Parent = playerListFrame
+
+local plStroke = Instance.new("UIStroke")
+plStroke.Color = Color3.fromRGB(100, 100, 255)
+plStroke.Thickness = 2
+plStroke.Parent = playerListFrame
+
+local plTitle = Instance.new("TextLabel")
+plTitle.Size = UDim2.new(1, -20, 0, 50)
+plTitle.Position = UDim2.new(0, 10, 0, 10)
+plTitle.BackgroundTransparency = 1
+plTitle.Text = "Select Player to Unlock"
+plTitle.TextColor3 = Color3.fromRGB(220, 220, 255)
+plTitle.Font = Enum.Font.GothamBold
+plTitle.TextSize = 18
+plTitle.ZIndex = 101
+plTitle.Parent = playerListFrame
+
+local plClose = Instance.new("TextButton")
+plClose.Size = UDim2.new(0, 30, 0, 30)
+plClose.Position = UDim2.new(1, -40, 0, 10)
+plClose.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
+plClose.Text = "X"
+plClose.TextColor3 = Color3.new(1, 1, 1)
+plClose.Font = Enum.Font.GothamBold
+plClose.TextSize = 18
+plClose.ZIndex = 101
+plClose.Parent = playerListFrame
+
+local plcCorner = Instance.new("UICorner")
+plcCorner.CornerRadius = UDim.new(0, 8)
+plcCorner.Parent = plClose
+
+plClose.MouseButton1Click:Connect(function()
+    playerListFrame.Visible = false
+end)
+
+local plScroll = Instance.new("ScrollingFrame")
+plScroll.Size = UDim2.new(1, -20, 1, -70)
+plScroll.Position = UDim2.new(0, 10, 0, 60)
+plScroll.BackgroundTransparency = 1
+plScroll.BorderSizePixel = 0
+plScroll.ScrollBarThickness = 6
+plScroll.ZIndex = 101
+plScroll.Parent = playerListFrame
+
+local plLayout = Instance.new("UIListLayout")
+plLayout.Padding = UDim.new(0, 5)
+plLayout.SortOrder = Enum.SortOrder.Name
+plLayout.Parent = plScroll
+
+local function updatePlayerList()
+    -- Clear existing buttons
+    for _, child in ipairs(plScroll:GetChildren()) do
+        if child:IsA("TextButton") then
+            child:Destroy()
+        end
+    end
+    
+    -- Add buttons for each player
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr ~= player then
+            local btn = Instance.new("TextButton")
+            btn.Size = UDim2.new(1, -10, 0, 40)
+            btn.BackgroundColor3 = Color3.fromRGB(40, 40, 55)
+            btn.Text = plr.Name .. " (" .. plr.UserId .. ")"
+            btn.TextColor3 = Color3.fromRGB(220, 220, 255)
+            btn.Font = Enum.Font.Gotham
+            btn.TextSize = 14
+            btn.ZIndex = 102
+            btn.Parent = plScroll
+            
+            local btnCorner = Instance.new("UICorner")
+            btnCorner.CornerRadius = UDim.new(0, 8)
+            btnCorner.Parent = btn
+            
+            btn.MouseButton1Click:Connect(function()
+                selectedPlayerId = plr.UserId
+                playerListFrame.Visible = false
+                
+                -- Execute unlock base
+                local ReplicatedStorage = game:GetService("ReplicatedStorage")
+                local REShopServicePurchase = ReplicatedStorage.Packages.Net["RE/ShopService/Purchase"]
+                REShopServicePurchase:FireServer(3312023518, selectedPlayerId)
+                
+                print("🔓 Unlocking base for: " .. plr.Name .. " (ID: " .. selectedPlayerId .. ")")
+            end)
+        end
+    end
+    
+    plScroll.CanvasSize = UDim2.new(0, 0, 0, plLayout.AbsoluteContentSize.Y)
+end
+
+UnlockBaseBtn.MouseButton1Click:Connect(function()
+    local otherPlayers = {}
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr ~= player then
+            table.insert(otherPlayers, plr)
+        end
+    end
+    
+    -- Se c'è solo 1 altro player, unlock diretto
+    if #otherPlayers == 1 then
+        selectedPlayerId = otherPlayers[1].UserId
+        local ReplicatedStorage = game:GetService("ReplicatedStorage")
+        local REShopServicePurchase = ReplicatedStorage.Packages.Net["RE/ShopService/Purchase"]
+        REShopServicePurchase:FireServer(3312023518, selectedPlayerId)
+        print("🔓 Unlocking base for: " .. otherPlayers[1].Name .. " (ID: " .. selectedPlayerId .. ")")
+    
+    -- Se ci sono più player, mostra la lista
+    elseif #otherPlayers > 1 then
+        updatePlayerList()
+        playerListFrame.Visible = true
+    else
+        print("⚠️ No other players in server!")
+    end
+end)
+
+-- Status frame rimosso per pulizia visiva
+
+-- Animation open/close
+local open = false
+local baseHeight = 110 -- Aggiornato
+local extraHeight = 300 -- Aggiornato per includere Anti Scam
+
+Gear.MouseButton1Click:Connect(function()
+    open = not open
+    local targetMain = open and (baseHeight + extraHeight) or baseHeight
+    local targetSettings = open and extraHeight or 0
+    TweenService:Create(MainFrame, TweenInfo.new(0.6, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {Size = UDim2.new(0, 320, 0, targetMain)}):Play()
+    TweenService:Create(SettingsFrame, TweenInfo.new(0.6, Enum.EasingStyle.Quint), {Size = UDim2.new(1, 0, 0, targetSettings)}):Play()
+end)
+
+-- DESYNC
+DesyncBtn.MouseButton1Click:Connect(function()
+    local FFlags = {
+        GameNetPVHeaderRotationalVelocityZeroCutoffExponent = -5000,
+        LargeReplicatorWrite5 = true,
+        LargeReplicatorEnabled9 = true,
+        AngularVelociryLimit = 360,
+        TimestepArbiterVelocityCriteriaThresholdTwoDt = 2147483646,
+        S2PhysicsSenderRate = 15000,
+        DisableDPIScale = true,
+        MaxDataPacketPerSend = 2147483647,
+        PhysicsSenderMaxBandwidthBps = 20000,
+        TimestepArbiterHumanoidLinearVelThreshold = 21,
+        MaxMissedWorldStepsRemembered = -2147483648,
+        PlayerHumanoidPropertyUpdateRestrict = true,
+        SimDefaultHumanoidTimestepMultiplier = 0,
+        StreamJobNOUVolumeLengthCap = 2147483647,
+        DebugSendDistInSteps = -2147483648,
+        GameNetDontSendRedundantNumTimes = 1,
+        CheckPVLinearVelocityIntegrateVsDeltaPositionThresholdPercent = 1,
+        CheckPVDifferencesForInterpolationMinVelThresholdStudsPerSecHundredth = 1,
+        LargeReplicatorSerializeRead3 = true,
+        ReplicationFocusNouExtentsSizeCutoffForPauseStuds = 2147483647,
+        CheckPVCachedVelThresholdPercent = 10,
+        CheckPVDifferencesForInterpolationMinRotVelThresholdRadsPerSecHundredth = 1,
+        GameNetDontSendRedundantDeltaPositionMillionth = 1,
+        InterpolationFrameVelocityThresholdMillionth = 5,
+        StreamJobNOUVolumeCap = 2147483647,
+        InterpolationFrameRotVelocityThresholdMillionth = 5,
+        CheckPVCachedRotVelThresholdPercent = 10,
+        WorldStepMax = 30,
+        InterpolationFramePositionThresholdMillionth = 5,
+        TimestepArbiterHumanoidTurningVelThreshold = 1,
+        SimOwnedNOUCountThresholdMillionth = 2147483647,
+        GameNetPVHeaderLinearVelocityZeroCutoffExponent = -5000,
+        NextGenReplicatorEnabledWrite4 = true,
+        TimestepArbiterOmegaThou = 1073741823,
+        MaxAcceptableUpdateDelay = 1,
+        LargeReplicatorSerializeWrite4 = true
+    }
+    local function respawnar(plr)
+        local char = plr.Character
+        if not char then return end
+        local hum = char:FindFirstChildWhichIsA("Humanoid")
+        if hum then hum:ChangeState(Enum.HumanoidStateType.Dead) end
+        char:ClearAllChildren()
+        local new = Instance.new("Model")
+        new.Parent = workspace
+        plr.Character = new
+        task.wait()
+        plr.Character = char
+        new:Destroy()
+    end
+    for name, value in pairs(FFlags) do
+        pcall(function()
+            setfflag(tostring(name), tostring(value))
+        end)
+    end
+    respawnar(player)
+    print("Desync activated!")
+end)
+
+-- ANTI SCAM FUNCTION
+local function toggleAntiScam()
+    antiScamEnabled = not antiScamEnabled
+    
+    if antiScamEnabled then
+        AntiScamBtn.Text = "Anti Scam: ON"
+        AntiScamBtn.BackgroundColor3 = Color3.fromRGB(40, 100, 60)
+        
+        task.spawn(function()
+            local success, remote = pcall(function()
+                return game:GetService("ReplicatedStorage"):FindFirstChild("Packages") 
+                    and game:GetService("ReplicatedStorage").Packages:FindFirstChild("Net") 
+                    and game:GetService("ReplicatedStorage").Packages.Net:FindFirstChild("RE/NotificationService/Notify")
+            end)
+            
+            if success and remote then
+                if antiScamConnection then
+                    antiScamConnection:Disconnect()
+                end
+                
+                antiScamConnection = remote.OnClientEvent:Connect(function(arg1, arg2, arg3)
+                    if antiScamEnabled and arg3 and type(arg3) == "string" and string.find(arg3, "Sounds%.Sfx%.Warn") then
+                        print("🚨 STEAL DETECTED! Executing anti-scam...")
+                        
+                        task.spawn(function()
+                            local ReplicatedStorage = game:GetService("ReplicatedStorage")
+                            local AdminPanelService = ReplicatedStorage.Packages.Net["RE/AdminPanelService/ExecuteCommand"]
+                            
+                            local otherPlayers = {}
+                            for _, plr in ipairs(Players:GetPlayers()) do
+                                if plr ~= player then
+                                    table.insert(otherPlayers, plr)
+                                end
+                            end
+                            
+                            -- Se c'è più di un player
+                            if #otherPlayers > 1 then
+                                -- Usa ragdoll sul primo e balloon sul secondo
+                                AdminPanelService:FireServer(otherPlayers[1], "ragdoll")
+                                print("🎯 Ragdoll on " .. otherPlayers[1].Name)
+                                
+                                AdminPanelService:FireServer(otherPlayers[2], "balloon")
+                                print("🎈 Balloon on " .. otherPlayers[2].Name)
+                                
+                                task.wait(0.5)
+                                -- Kicka dal gioco
+                                player:Kick("🛡️ Anti-Scam Protection Activated!")
+                                
+                            -- Se c'è solo un player
+                            elseif #otherPlayers == 1 then
+                                AdminPanelService:FireServer(otherPlayers[1], "balloon")
+                                print("🎈 Balloon on " .. otherPlayers[1].Name)
+                            else
+                                print("⚠️ No other players found for anti-scam!")
+                            end
+                        end)
+                    end
+                end)
+                
+                print("✅ Anti-Scam activated!")
+            else
+                print("⚠️ Remote not found for Anti-Scam!")
+            end
+        end)
+    else
+        AntiScamBtn.Text = "Anti Scam: OFF"
+        AntiScamBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 65)
+        
+        if antiScamConnection then
+            antiScamConnection:Disconnect()
+            antiScamConnection = nil
+        end
+        
+        print("❌ Anti-Scam disabled!")
+    end
+end
+
+AntiScamBtn.MouseButton1Click:Connect(toggleAntiScam)
+
+-- PROXIMITY PROMPT (Sistema migliorato con verifica completamento)
+local holdStartTime = 0
+local requiredHoldDuration = 0
+
+ProximityPromptService.PromptButtonHoldBegan:Connect(function(prompt)
+    if not isAutoStealEnabled or isProcessing then return end
+    isProcessing = true
+    teleportScheduled = false
+    activePrompt = prompt
+    holdStartTime = tick()
+    requiredHoldDuration = prompt.HoldDuration or 1
+    
+    equipCarpet()
+end)
+
+ProximityPromptService.PromptButtonHoldEnded:Connect(function(prompt)
+    if not isProcessing or prompt ~= activePrompt then return end
+    
+    -- Calcola se l'hold è stato completato
+    local holdTime = tick() - holdStartTime
+    if holdTime < requiredHoldDuration * 0.95 then -- 95% margine per lag
+        teleportScheduled = false
+        isProcessing = false
+        activePrompt = nil
+    end
+end)
+
+ProximityPromptService.PromptTriggered:Connect(function(prompt)
+    if not isAutoStealEnabled then return end
+    if prompt ~= activePrompt then return end
+    
+    -- Verifica che l'hold sia stato effettivamente completato
+    local holdTime = tick() - holdStartTime
+    if holdTime < requiredHoldDuration * 0.95 then
+        isProcessing = false
+        return
+    end
+    
+    teleportScheduled = true
+    local targetPos = teleportPositions[selectedSlot]
+    
+    hrp.CFrame = CFrame.new(targetPos)
+    task.wait(0.4)
+    freezePlayer()
+    
+    task.wait(0.5)
+    isProcessing = false
+    activePrompt = nil
+end)
+
+-- INIT
+updateSelectedSlot(selectedSlot)
+
+player.CharacterAdded:Connect(function(c)
+    character = c
+    humanoid = c:WaitForChild("Humanoid")
+    hrp = c:WaitForChild("HumanoidRootPart")
+    task.wait(1)
+    updateSelectedSlot(selectedSlot)
+end)
+
+print("✅ VACIDS PREMIUM INSTANT STEAL - Complete Unified Version!")
